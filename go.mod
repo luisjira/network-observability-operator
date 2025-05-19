@@ -2,8 +2,6 @@ module github.com/netobserv/network-observability-operator
 
 go 1.24.0
 
-toolchain go1.24.3
-
 require (
 	github.com/bpfman/bpfman-operator v0.5.7-0.20250411151105-cd81bc6e57d7
 	github.com/coreos/go-semver v0.3.1

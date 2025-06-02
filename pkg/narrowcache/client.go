@@ -6,15 +6,7 @@ import (
 	"reflect"
 	"sync"
 
-	osv1 "github.com/openshift/api/console/v1"
-	securityv1 "github.com/openshift/api/security/v1"
-	appsv1 "k8s.io/api/apps/v1"
-	ascv2 "k8s.io/api/autoscaling/v2"
-	corev1 "k8s.io/api/core/v1"
-	networkingv1 "k8s.io/api/networking/v1"
-	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/types"
@@ -99,7 +91,8 @@ func (c *Client) getAndCreateWatchIfNeeded(ctx context.Context, info GVKInfo, gv
 	}
 
 	// Store fetched object
-	err = c.setToCache(objKey, fetched)
+	obj := info.Cleanup(fetched)
+	err = c.setToCache(objKey, obj)
 	if err != nil {
 		return nil, objKey, err
 	}
@@ -145,49 +138,6 @@ func (c *Client) updateCache(ctx context.Context, key string, watcher watch.Inte
 }
 
 func (c *Client) setToCache(key string, obj runtime.Object) error {
-	// cleanup unecessary fields
-	switch ro := obj.(type) {
-	case *corev1.ConfigMap:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-		ro.BinaryData = nil
-	case *rbacv1.ClusterRole:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-	case *rbacv1.ClusterRoleBinding:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-	case *osv1.ConsolePlugin:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-	case *appsv1.DaemonSet:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-		ro.Status.Conditions = []appsv1.DaemonSetCondition{}
-	case *appsv1.Deployment:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-		ro.Status.Conditions = []appsv1.DeploymentCondition{}
-	case *ascv2.HorizontalPodAutoscaler:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-		ro.Status.CurrentMetrics = []ascv2.MetricStatus{}
-		ro.Status.Conditions = []ascv2.HorizontalPodAutoscalerCondition{}
-	case *corev1.Namespace:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-		ro.Status.Conditions = []corev1.NamespaceCondition{}
-	case *networkingv1.NetworkPolicy:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-	case *rbacv1.Role:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-	case *rbacv1.RoleBinding:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-	case *corev1.Secret:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-		ro.StringData = nil
-	case *securityv1.SecurityContextConstraints:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-	case *corev1.Service:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-		ro.Status.LoadBalancer.Ingress = []corev1.LoadBalancerIngress{}
-		ro.Status.Conditions = []metav1.Condition{}
-	case *corev1.ServiceAccount:
-		ro.SetManagedFields([]metav1.ManagedFieldsEntry{})
-	}
-
 	cObj, ok := obj.(client.Object)
 	if !ok {
 		return fmt.Errorf("could not convert runtime.Object to client.Object")

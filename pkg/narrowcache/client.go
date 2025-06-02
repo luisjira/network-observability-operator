@@ -3,9 +3,9 @@ package narrowcache
 import (
 	"context"
 	"fmt"
+	"reflect"
 	"sync"
 
-	"github.com/jinzhu/copier"
 	osv1 "github.com/openshift/api/console/v1"
 	securityv1 "github.com/openshift/api/security/v1"
 	appsv1 "k8s.io/api/apps/v1"
@@ -59,7 +59,10 @@ func (c *Client) Get(ctx context.Context, key client.ObjectKey, out client.Objec
 		if err != nil {
 			return err
 		}
-		copier.Copy(out, obj)
+		err = copyInto(obj, out)
+		if err != nil {
+			return err
+		}
 		return nil
 	}
 
@@ -105,6 +108,22 @@ func (c *Client) getAndCreateWatchIfNeeded(ctx context.Context, info GVKInfo, gv
 	go c.updateCache(ctx, objKey, w)
 
 	return fetched.(client.Object), objKey, nil
+}
+
+// "Terrible hack" cc directxman12 / sigs.k8s.io/controller-runtime/pkg/cache/internal/cache_reader.go
+func copyInto(obj runtime.Object, out client.Object) error {
+	// Copy the value of the item in the cache to the returned value
+	// TODO(directxman12): this is a terrible hack, pls fix (we should have deepcopyinto)
+	outVal := reflect.ValueOf(out)
+	objVal := reflect.ValueOf(obj)
+	if !objVal.Type().AssignableTo(outVal.Type()) {
+		return fmt.Errorf("cache had type %s, but %s was asked for", objVal.Type(), outVal.Type())
+	}
+	reflect.Indirect(outVal).Set(reflect.Indirect(objVal))
+	// if !c.disableDeepCopy {
+	// 	out.GetObjectKind().SetGroupVersionKind(c.groupVersionKind)
+	// }
+	return nil
 }
 
 func (c *Client) updateCache(ctx context.Context, key string, watcher watch.Interface) {

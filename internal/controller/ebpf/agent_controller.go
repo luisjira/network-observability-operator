@@ -346,7 +346,7 @@ func (c *AgentController) desired(ctx context.Context, coll *flowslatest.FlowCol
 					VolumeAttributes: map[string]string{
 						"csi.bpfman.io/program": "netobserv",
 						"csi.bpfman.io/maps": "aggregated_flows,additional_flow_metrics,direct_flows," +
-							"dns_flows,filter_map,peer_filter_map,global_counters,packet_record,ipsec_ingress_map,ipsec_egress_map",
+							"dns_flows,filter_map,peer_filter_map,global_counters,packet_records,ipsec_ingress_map,ipsec_egress_map",
 					},
 				},
 			},

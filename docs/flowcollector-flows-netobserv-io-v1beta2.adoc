@@ -94,11 +94,15 @@ Type::
 | `string`
 | `deploymentModel` defines the desired type of deployment for flow processing. Possible values are: +
 
-- `Direct` (default) to make the flow processor listen directly from the agents. +
+- `Direct` (default) to make the flow processor listen directly from the agents using the host network, backed by a DaemonSet. Only recommended on small clusters, below 15 nodes. +
+
+- `Service` to make the flow processor listen as a Kubernetes Service, backed by a scalable Deployment. +
 
 - `Kafka` to make flows sent to a Kafka pipeline before consumption by the processor. +
 
-Kafka can provide better scalability, resiliency, and high availability (for more details, see https://www.redhat.com/en/topics/integration/what-is-apache-kafka).
+Kafka can provide better scalability, resiliency, and high availability (for more details, see https://www.redhat.com/en/topics/integration/what-is-apache-kafka). +
+
+`Direct` is not recommended on large clusters as it is less memory efficient.
 
 | `exporters`
 | `array`
@@ -802,7 +806,8 @@ such as `GOGC` and `GOMAXPROCS` environment variables. Set these values at your 
 
 | `autoscaler`
 | `object`
-| `autoscaler` spec of a horizontal pod autoscaler to set up for the plugin Deployment. Refer to HorizontalPodAutoscaler documentation (autoscaling/v2).
+| `autoscaler` [deprecated (*)] spec of a horizontal pod autoscaler to set up for the plugin Deployment.
+Deprecation notice: managed autoscaler will be removed in a future version. You might configure instead an autoscaler of your choice, and set `spec.consolePlugin.unmanagedReplicas` to `true`. Refer to HorizontalPodAutoscaler documentation (autoscaling/v2).
 
 | `enable`
 | `boolean`
@@ -832,6 +837,10 @@ such as `GOGC` and `GOMAXPROCS` environment variables. Set these values at your 
 | `object`
 | `resources`, in terms of compute resources, required by this container.
 For more information, see https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+
+| `unmanagedReplicas`
+| `boolean`
+| If `unmanagedReplicas` is `true`, the operator will not reconcile `replicas`. This is useful when using a pod autoscaler.
 
 |===
 == .spec.consolePlugin.advanced
@@ -950,7 +959,8 @@ Type::
 Description::
 +
 --
-`autoscaler` spec of a horizontal pod autoscaler to set up for the plugin Deployment. Refer to HorizontalPodAutoscaler documentation (autoscaling/v2).
+`autoscaler` [deprecated (*)] spec of a horizontal pod autoscaler to set up for the plugin Deployment.
+Deprecation notice: managed autoscaler will be removed in a future version. You might configure instead an autoscaler of your choice, and set `spec.consolePlugin.unmanagedReplicas` to `true`. Refer to HorizontalPodAutoscaler documentation (autoscaling/v2).
 --
 
 Type::
@@ -2672,9 +2682,10 @@ configuration, you can disable it and install your own instead.
 
 | `enable`
 | `boolean`
-| Set `enable` to `true` to deploy network policies on the namespaces used by Network Observability (main and privileged). It is disabled by default.
-These network policies better isolate the Network Observability components to prevent undesired connections to them.
-This option is enabled by default, disable it to manually manage network policies
+| Deploys network policies on the namespaces used by Network Observability (main and privileged).
+These network policies better isolate the Network Observability components to prevent undesired connections from and to them.
+This option is enabled by default when using with OVNKubernetes, and disabled otherwise (it has not been tested with other CNIs).
+When disabled, you can create manually the network policies for the Network Observability components.
 
 |===
 == .spec.processor
@@ -2710,6 +2721,11 @@ such as `GOGC` and `GOMAXPROCS` environment variables. Set these values at your 
 | `string`
 | `clusterName` is the name of the cluster to appear in the flows data. This is useful in a multi-cluster context. When using {product-title}, leave empty to make it automatically determined.
 
+| `consumerReplicas`
+| `integer`
+| `consumerReplicas` defines the number of replicas (pods) to start for `flowlogs-pipeline`, default is 3.
+This setting is ignored when `spec.deploymentModel` is `Direct` or when `spec.processor.unmanagedReplicas` is `true`.
+
 | `deduper`
 | `object`
 | `deduper` allows you to sample or drop flows identified as duplicates, in order to save on resource usage.
@@ -2726,8 +2742,9 @@ but with a lesser improvement in performance.
 
 | `kafkaConsumerAutoscaler`
 | `object`
-| `kafkaConsumerAutoscaler` is the spec of a horizontal pod autoscaler to set up for `flowlogs-pipeline-transformer`, which consumes Kafka messages.
-This setting is ignored when Kafka is disabled. Refer to HorizontalPodAutoscaler documentation (autoscaling/v2).
+| `kafkaConsumerAutoscaler` [deprecated (*)] is the spec of a horizontal pod autoscaler to set up for `flowlogs-pipeline-transformer`, which consumes Kafka messages.
+This setting is ignored when Kafka is disabled.
+Deprecation notice: managed autoscaler will be removed in a future version. You might configure instead an autoscaler of your choice, and set `spec.processor.unmanagedReplicas` to `true`. Refer to HorizontalPodAutoscaler documentation (autoscaling/v2).
 
 | `kafkaConsumerBatchSize`
 | `integer`
@@ -2739,8 +2756,9 @@ This setting is ignored when Kafka is disabled. Refer to HorizontalPodAutoscaler
 
 | `kafkaConsumerReplicas`
 | `integer`
-| `kafkaConsumerReplicas` defines the number of replicas (pods) to start for `flowlogs-pipeline-transformer`, which consumes Kafka messages.
+| `kafkaConsumerReplicas` [deprecated (*)] defines the number of replicas (pods) to start for `flowlogs-pipeline-transformer`, which consumes Kafka messages.
 This setting is ignored when Kafka is disabled.
+Deprecation notice: use `spec.processor.consumerReplicas` instead.
 
 | `logLevel`
 | `string`
@@ -2776,6 +2794,10 @@ For more information, see https://kubernetes.io/docs/concepts/configuration/mana
 | `object`
 | `subnetLabels` allows to define custom labels on subnets and IPs or to enable automatic labelling of recognized subnets in {product-title}, which is used to identify cluster external traffic.
 When a subnet matches the source or destination IP of a flow, a corresponding field is added: `SrcSubnetLabel` or `DstSubnetLabel`.
+
+| `unmanagedReplicas`
+| `boolean`
+| If `unmanagedReplicas` is `true`, the operator will not reconcile `consumerReplicas`. This is useful when using a pod autoscaler.
 
 |===
 == .spec.processor.advanced
@@ -3042,8 +3064,9 @@ Type::
 Description::
 +
 --
-`kafkaConsumerAutoscaler` is the spec of a horizontal pod autoscaler to set up for `flowlogs-pipeline-transformer`, which consumes Kafka messages.
-This setting is ignored when Kafka is disabled. Refer to HorizontalPodAutoscaler documentation (autoscaling/v2).
+`kafkaConsumerAutoscaler` [deprecated (*)] is the spec of a horizontal pod autoscaler to set up for `flowlogs-pipeline-transformer`, which consumes Kafka messages.
+This setting is ignored when Kafka is disabled.
+Deprecation notice: managed autoscaler will be removed in a future version. You might configure instead an autoscaler of your choice, and set `spec.processor.unmanagedReplicas` to `true`. Refer to HorizontalPodAutoscaler documentation (autoscaling/v2).
 --
 
 Type::
